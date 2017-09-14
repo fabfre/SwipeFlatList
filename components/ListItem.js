@@ -1,5 +1,13 @@
 import React from 'react';
-import {View, Text, StyleSheet, Animated, Dimensions, PanResponder} from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Animated,
+  Dimensions,
+  PanResponder,
+  TouchableHighlight,
+} from 'react-native';
 
 const {width} = Dimensions.get('window');
 
@@ -7,34 +15,44 @@ export default class ListItem extends React.PureComponent {
   constructor(props) {
     super(props);
 
+    this.onRowPressed = this.onRowPressed.bind(this);
+    this.onActionPressed = this.onActionPressed.bind(this);
+
     this.gestureDelay = -35;
+    this.expandedWidth = 80;
     this.scrollViewEnabled = true;
+    this.toggleExpanded = false;
 
     const position = new Animated.ValueXY();
     const panResponder = PanResponder.create({
       onStartShouldSetPanResponder: (evt, gestureState) => false,
-      onMoveShouldSetPanResponder: (evt, gestureState) => true,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        if (Math.abs(gestureState.dx) > 5) {
+          return true;
+        }
+        return false;
+      },
       onPanResponderTerminationRequest: (evt, gestureState) => false,
       onPanResponderMove: (evt, gestureState) => {
         if (gestureState.dx > 35) {
           this.setScrollViewEnabled(false);
           let newX = gestureState.dx + this.gestureDelay;
+          if (this.toggleExpanded) {
+            newX += this.expandedWidth;
+          }
           position.setValue({x: newX, y: 0});
         }
       },
       onPanResponderRelease: (evt, gestureState) => {
-        if (gestureState.dx < 150) {
-          Animated.timing(this.state.position, {
-            toValue: {x: 0, y: 0},
-            duration: 150,
-          }).start(() => {
+        if (
+          (!this.toggleExpanded && gestureState.dx < 150) ||
+          (this.toggleExpanded && gestureState.dx < 50)
+        ) {
+          this.animate(0, 0, 150, () => {
             this.setScrollViewEnabled(true);
           });
         } else {
-          Animated.timing(this.state.position, {
-            toValue: {x: width, y: 0},
-            duration: 300,
-          }).start(() => {
+          this.animate(width, 0, 300, () => {
             this.props.success(this.props.text);
             this.setScrollViewEnabled(true);
           });
@@ -53,18 +71,55 @@ export default class ListItem extends React.PureComponent {
     }
   }
 
+  onRowPressed() {
+    this.setScrollViewEnabled(false);
+    if (this.toggleExpanded) {
+      this.animate(0, 0, 150, () => {
+        this.setScrollViewEnabled(true);
+      });
+    } else {
+      this.animate(this.expandedWidth, 0, 150, () => {
+        this.setScrollViewEnabled(true);
+      });
+    }
+    this.toggleExpanded = !this.toggleExpanded;
+  }
+
+  animate(x, y, duration, callback) {
+    Animated.timing(this.state.position, {
+      toValue: {x: x, y: y},
+      duration: duration,
+    }).start(callback);
+  }
+
+  onActionPressed() {
+    this.setScrollViewEnabled(false);
+    this.animate(width, 0, 400, () => {
+      this.props.success(this.props.text);
+      this.setScrollViewEnabled(true);
+    });
+  }
+
   render() {
     return (
       <View style={styles.listItem}>
         <Animated.View style={[this.state.position.getLayout()]} {...this.panResponder.panHandlers}>
-          <View style={styles.absoluteCell}>
+          <TouchableHighlight
+            style={styles.absoluteCell}
+            underlayColor={'red'}
+            onPress={this.onActionPressed}
+          >
             <Text style={styles.absoluteCellText}>DELETE</Text>
-          </View>
-          <View style={styles.innerCell}>
+          </TouchableHighlight>
+          <TouchableHighlight
+            style={styles.innerCell}
+            underlayColor={'yellow'}
+            onPress={this.onRowPressed}
+          >
             <Text>
               {this.props.text}
             </Text>
-          </View>
+          </TouchableHighlight>
         </Animated.View>
       </View>
     );
